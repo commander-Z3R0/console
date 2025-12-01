@@ -26,7 +26,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt install -y ninja-build pkg-config \
-          libgtk-4-dev libglib2.0-dev libvte-2.91-dev libadwaita-1.6-dev \
+          libgtk-4-dev libglib2.0-dev libvte-2.91-dev libadwaita-1-dev \
           libsystemd-dev gettext dpkg-dev debhelper
 
     - name: Configure build with Meson
