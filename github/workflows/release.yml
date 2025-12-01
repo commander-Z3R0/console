@@ -1,0 +1,36 @@
+name: Build gnome-console ARM64
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm64   # Use native ARM64 runner
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y meson ninja-build pkg-config \
+                            libgtk-4-dev libglib2.0-dev libvte-2.91-dev \
+                            libadwaita-1-dev libsystemd-dev gettext
+
+    - name: Configure build with Meson
+      run: |
+        meson setup build --profile=phone --prefix=/usr
+
+    - name: Build the project
+      run: |
+        meson compile -C build
+
+    - name: Optionally install (for testing)
+      run: |
+        sudo meson install -C build
