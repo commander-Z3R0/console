@@ -1,13 +1,15 @@
-name: Build gnome-console ARM64
+name: Build and Release gnome-console ARM64 .deb
 
 on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
-
 
 jobs:
   build:
@@ -17,21 +19,71 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install dependencies
+    - name: Install dependencies and packaging tools
       run: |
         sudo apt update
         sudo apt install -y meson ninja-build pkg-config \
-                            libgtk-4-dev libglib2.0-dev libvte-2.91-dev \
-                            libadwaita-1-dev libsystemd-dev gettext
+          libgtk-4-dev libglib2.0-dev libvte-2.91-dev libadwaita-1-dev \
+          libsystemd-dev gettext dpkg-dev debhelper
 
     - name: Configure build with Meson
       run: |
-        meson setup build --profile=phone --prefix=/usr
+        meson setup build --prefix=/usr \
+        -Dbuildtype=debugoptimized \
+        -Dadwaita:examples=false \
+        -Dadwaita:introspection=disabled \
+        -Dadwaita:tests=false \
+        -Dadwaita:vapi=false \
+        -Dgtk:build-examples=false \
+        -Dgtk:build-tests=false \
+        -Dgtk:build-testsuite=false \
+        -Dgtk:build-demos=false \
+        -Dgtk:introspection=disabled \
+        -Dlibsass:werror=false \
+        -Dvte:c_std=gnu11 \
+        -Dvte:cpp_std=gnu++17 \
+        -Dvte:gir=false \
+        -Dvte:gtk3=false \
+        -Dvte:gtk4=true \
+        -Dvte:vapi=false \
+        -Dvte:werror=false
 
     - name: Build the project
-      run: |
-        meson compile -C build
+      run: meson compile -C build
 
-    - name: Optionally install (for testing)
+    - name: Install to staging directory
+      run: meson install --destdir=${{ github.workspace }}/package-staging -C build
+
+    - name: Create DEBIAN control files
       run: |
-        sudo meson install -C build
+        mkdir -p package-staging/DEBIAN
+        cat > package-staging/DEBIAN/control <<EOF
+        Package: gnome-console
+        Version: ${{ github.ref_name }}
+        Section: utils
+        Priority: optional
+        Architecture: arm64
+        Maintainer: Your Name <your.email@example.com>
+        Description: GNOME Console built from source ARM64
+        EOF
+
+    - name: Build .deb package
+      run: |
+        dpkg-deb --build package-staging
+        mv package-staging.deb gnome-console_${{ github.ref_name }}_arm64.deb
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload .deb package to Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: gnome-console_${{ github.ref_name }}_arm64.deb
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
