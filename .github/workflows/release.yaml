@@ -22,42 +22,34 @@ jobs:
     - name: Upgrade Meson
       run: python3 -m pip install --upgrade meson
 
-    - name: Install dependencies
+    - name: Install build dependencies and packaging tools
       run: |
         sudo apt update
         sudo apt install -y ninja-build pkg-config \
           libgtk-4-dev libglib2.0-dev libvte-2.91-dev libadwaita-1.6-dev \
-          libsystemd-dev gettext
-		
-
-    - name: Install dependencies and packaging tools
-      run: |
-        sudo apt update
-        sudo apt install -y meson ninja-build pkg-config \
-          libgtk-4-dev libglib2.0-dev libvte-2.91-dev libadwaita-1-dev \
           libsystemd-dev gettext dpkg-dev debhelper
 
     - name: Configure build with Meson
       run: |
         meson setup build --prefix=/usr \
-        -Dbuildtype=debugoptimized \
-        -Dadwaita:examples=false \
-        -Dadwaita:introspection=disabled \
-        -Dadwaita:tests=false \
-        -Dadwaita:vapi=false \
-        -Dgtk:build-examples=false \
-        -Dgtk:build-tests=false \
-        -Dgtk:build-testsuite=false \
-        -Dgtk:build-demos=false \
-        -Dgtk:introspection=disabled \
-        -Dlibsass:werror=false \
-        -Dvte:c_std=gnu11 \
-        -Dvte:cpp_std=gnu++17 \
-        -Dvte:gir=false \
-        -Dvte:gtk3=false \
-        -Dvte:gtk4=true \
-        -Dvte:vapi=false \
-        -Dvte:werror=false
+          -Dbuildtype=debugoptimized \
+          -Dadwaita:examples=false \
+          -Dadwaita:introspection=disabled \
+          -Dadwaita:tests=false \
+          -Dadwaita:vapi=false \
+          -Dgtk:build-examples=false \
+          -Dgtk:build-tests=false \
+          -Dgtk:build-testsuite=false \
+          -Dgtk:build-demos=false \
+          -Dgtk:introspection=disabled \
+          -Dlibsass:werror=false \
+          -Dvte:c_std=gnu11 \
+          -Dvte:cpp_std=gnu++17 \
+          -Dvte:gir=false \
+          -Dvte:gtk3=false \
+          -Dvte:gtk4=true \
+          -Dvte:vapi=false \
+          -Dvte:werror=false
 
     - name: Build the project
       run: meson compile -C build
@@ -65,7 +57,7 @@ jobs:
     - name: Install to staging directory
       run: meson install --destdir=${{ github.workspace }}/package-staging -C build
 
-    - name: Create DEBIAN control files
+    - name: Create DEBIAN control file
       run: |
         mkdir -p package-staging/DEBIAN
         cat > package-staging/DEBIAN/control <<EOF
