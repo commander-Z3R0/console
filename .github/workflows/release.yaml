@@ -1,6 +1,9 @@
-name: Build ARM64 Console
+name: Build ARM64 Console (.deb)
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -10,74 +13,54 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install QEMU + debootstrap
+    - name: Install cross deps
       run: |
+        sudo dpkg --add-architecture arm64
         sudo apt update
-        sudo apt install -y qemu-user-static binfmt-support debootstrap
+        sudo apt install -y \
+          gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+          meson ninja-build gettext gi-docgen \
+          libglib2.0-dev:arm64 libgirepository1.0-dev:arm64 \
+          libgtk-4-dev:arm64 libadwaita-1-dev:arm64 \
+          libvte-2.91-dev:arm64 libprocps-dev:arm64 \
+          libnl-3-dev:arm64 libnl-route-3-dev:arm64 \
+          libpcre2-dev:arm64 libxml2-dev:arm64 \
+          libgdk-pixbuf-2.0-dev:arm64 libsystemd-dev:arm64
 
-    - name: Create ARM64 rootfs
+    - name: Configure Meson (cross build)
       run: |
-        sudo debootstrap --arch=arm64 jammy arm64-rootfs http://ports.ubuntu.com/
+        meson setup build_arm64 \
+          --cross-file aarch64.txt \
+          --prefix=/usr
 
-    - name: Mount system dirs into chroot
+    - name: Build
+      run: ninja -C build_arm64
+
+    - name: Install to pkg/ directory
       run: |
-        sudo mount --bind /dev arm64-rootfs/dev
-        sudo mount --bind /dev/pts arm64-rootfs/dev/pts
-        sudo mount --bind /proc arm64-rootfs/proc
-        sudo mount --bind /sys arm64-rootfs/sys
+        DESTDIR=pkg meson install -C build_arm64
 
-    - name: Copy QEMU into chroot
-      run: sudo cp /usr/bin/qemu-aarch64-static arm64-rootfs/usr/bin/
-
-    - name: Enable universe/multiverse inside chroot + install deps
+    - name: Create .deb package
       run: |
-        sudo chroot arm64-rootfs /bin/bash -c "
-          sed -i 's/^# deb/deb/g' /etc/apt/sources.list;
-          add-apt-repository universe -y;
-          add-apt-repository multiverse -y;
-          apt update;
-          apt install -y \
-            build-essential meson ninja-build gettext gi-docgen \
-            libglib2.0-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev \
-            libvte-2.91-dev libprocps-dev libnl-3-dev libnl-route-3-dev \
-            libpcre2-dev libxml2-dev libgdk-pixbuf-2.0-dev libsystemd-dev
-        "
+        mkdir -p pkg/DEBIAN
+        cat > pkg/DEBIAN/control <<EOF
+Package: gnome-console
+Version: 1.0
+Architecture: arm64
+Maintainer: GitHub Actions
+Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
+Description: GNOME Console compiled for ARM64
+EOF
+        dpkg-deb --build pkg gnome-console_arm64.deb
 
-    - name: Copy source into ARM64 rootfs
-      run: sudo cp -r . arm64-rootfs/src
-
-    - name: Build inside ARM64
-      run: |
-        sudo chroot arm64-rootfs /bin/bash -c "
-          cd /src &&
-          meson setup build --prefix=/usr &&
-          ninja -C build &&
-          DESTDIR=/pkg meson install -C build
-        "
-
-    - name: Build ARM64 .deb
-      run: |
-        mkdir -p arm64-rootfs/pkg/DEBIAN
-        cat > arm64-rootfs/pkg/DEBIAN/control <<EOF
-          Package: gnome-console
-          Version: 1.0
-          Architecture: arm64
-          Maintainer: GitHub Actions
-          Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
-          Description: GNOME Console compiled for ARM64
-        EOF
-
-        dpkg-deb --build arm64-rootfs/pkg console_arm64.deb
-
-    - name: Unmount chroot (cleanup)
-      if: always()
-      run: |
-        sudo umount -lf arm64-rootfs/dev/pts || true
-        sudo umount -lf arm64-rootfs/dev || true
-        sudo umount -lf arm64-rootfs/proc || true
-        sudo umount -lf arm64-rootfs/sys || true
-
-    - uses: actions/upload-artifact@v4
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
       with:
-        name: console_arm64
-        path: console_arm64.deb
+        name: gnome-console_arm64
+        path: gnome-console_arm64.deb
+
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: gnome-console_arm64.deb
