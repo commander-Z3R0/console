@@ -29,10 +29,13 @@ jobs:
     - name: Copy QEMU into chroot
       run: sudo cp /usr/bin/qemu-aarch64-static arm64-rootfs/usr/bin/
 
-    - name: Install build dependencies inside ARM64 chroot
+    - name: Enable universe/multiverse inside chroot + install deps
       run: |
         sudo chroot arm64-rootfs /bin/bash -c "
-          apt update &&
+          sed -i 's/^# deb/deb/g' /etc/apt/sources.list;
+          add-apt-repository universe -y;
+          add-apt-repository multiverse -y;
+          apt update;
           apt install -y \
             build-essential meson ninja-build gettext gi-docgen \
             libglib2.0-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev \
