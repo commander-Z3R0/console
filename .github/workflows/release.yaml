@@ -1,88 +1,64 @@
-name: Build GNOME Console ARM64
-
+name: Build ARM64 Console
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
-
 jobs:
-  build-arm64:
-    runs-on: ubuntu-22.04
+  build:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Install build dependencies (host + ARM64)
+    - name: Install QEMU + debootstrap
       run: |
-        sudo dpkg --add-architecture arm64
         sudo apt update
+        sudo apt install -y qemu-user-static binfmt-support debootstrap
 
-       
-        sudo apt install -y \
-          gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-          binutils-aarch64-linux-gnu \
-          pkg-config-aarch64-linux-gnu
-
-        sudo apt install -y \
-          libglib2.0-dev:arm64 \
-          libgirepository1.0-dev:arm64 \
-          libgtk-4-dev:arm64 \
-          libadwaita-1-dev:arm64 \
-          libvte-2.91-dev:arm64 \
-          libprocps-dev:arm64 \
-          libnl-3-dev:arm64 \
-          libnl-route-3-dev:arm64 \
-          libpcre2-dev:arm64 \
-          libxml2-dev:arm64 \
-          libgdk-pixbuf-2.0-dev:arm64 \
-          libsystemd-dev:arm64
-
-         sudo apt install -y \
-          meson ninja-build gettext build-essential gi-docgen
-
-    - name: Show cross-file
+    - name: Create ARM64 rootfs
       run: |
-        echo "========== aarch64.txt =========="
-        cat aarch64.txt
-        echo "=================================="
+        sudo debootstrap --arch=arm64 jammy arm64-rootfs http://ports.ubuntu.com/
 
-    - name: Configure Meson for ARM64
+    - name: Copy QEMU
+      run: sudo cp /usr/bin/qemu-aarch64-static arm64-rootfs/usr/bin/
+
+    - name: Install dependencies inside ARM64 chroot
       run: |
-        meson setup build \
-          --cross-file aarch64.txt \
-          --prefix=/usr
+        sudo chroot arm64-rootfs /bin/bash -c "
+          apt update &&
+          apt install -y build-essential meson ninja-build gettext gi-docgen \
+          libglib2.0-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev \
+          libvte-2.91-dev libprocps-dev libnl-3-dev libnl-route-3-dev \
+          libpcre2-dev libxml2-dev libgdk-pixbuf-2.0-dev libsystemd-dev
+        "
 
-    - name: Build
-      run: ninja -C build
+    - name: Copy source into ARM64 rootfs
+      run: sudo cp -r . arm64-rootfs/src
 
-    - name: Install rootfs structure
+    - name: Build inside ARM64
       run: |
-        meson install -C build --destdir pkg
+        sudo chroot arm64-rootfs /bin/bash -c "
+          cd /src &&
+          meson setup build --prefix=/usr &&
+          ninja -C build &&
+          DESTDIR=/pkg meson install -C build
+        "
 
-    - name: Create DEBIAN metadata
+    - name: Build ARM64 .deb
       run: |
-        mkdir -p pkg/DEBIAN
-        cat > pkg/DEBIAN/control <<EOF
-          Package: gnome-console
-          Version: 1.0
-          Architecture: arm64
-          Maintainer: GitHub Actions
-          Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
-          Description: GNOME Console compiled for ARM64
-        EOF
+        mkdir -p arm64-rootfs/pkg/DEBIAN
+        cat > arm64-rootfs/pkg/DEBIAN/control <<EOF
+Package: gnome-console
+Version: 1.0
+Architecture: arm64
+Maintainer: GitHub Actions
+Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
+Description: GNOME Console compiled for ARM64
+EOF
 
-    - name: Build DEB package
-      run: |
-        dpkg-deb --build pkg console_arm64.deb
+        dpkg-deb --build arm64-rootfs/pkg console_arm64.deb
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v4
       with:
-        name: console-arm64
+        name: console_arm64
         path: console_arm64.deb
