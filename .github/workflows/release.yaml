@@ -19,17 +19,25 @@ jobs:
       run: |
         sudo debootstrap --arch=arm64 jammy arm64-rootfs http://ports.ubuntu.com/
 
-    - name: Copy QEMU
+    - name: Mount system dirs into chroot
+      run: |
+        sudo mount --bind /dev arm64-rootfs/dev
+        sudo mount --bind /dev/pts arm64-rootfs/dev/pts
+        sudo mount --bind /proc arm64-rootfs/proc
+        sudo mount --bind /sys arm64-rootfs/sys
+
+    - name: Copy QEMU into chroot
       run: sudo cp /usr/bin/qemu-aarch64-static arm64-rootfs/usr/bin/
 
-    - name: Install dependencies inside ARM64 chroot
+    - name: Install build dependencies inside ARM64 chroot
       run: |
         sudo chroot arm64-rootfs /bin/bash -c "
           apt update &&
-          apt install -y build-essential meson ninja-build gettext gi-docgen \
-          libglib2.0-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev \
-          libvte-2.91-dev libprocps-dev libnl-3-dev libnl-route-3-dev \
-          libpcre2-dev libxml2-dev libgdk-pixbuf-2.0-dev libsystemd-dev
+          apt install -y \
+            build-essential meson ninja-build gettext gi-docgen \
+            libglib2.0-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev \
+            libvte-2.91-dev libprocps-dev libnl-3-dev libnl-route-3-dev \
+            libpcre2-dev libxml2-dev libgdk-pixbuf-2.0-dev libsystemd-dev
         "
 
     - name: Copy source into ARM64 rootfs
@@ -57,6 +65,14 @@ Description: GNOME Console compiled for ARM64
 EOF
 
         dpkg-deb --build arm64-rootfs/pkg console_arm64.deb
+
+    - name: Unmount chroot (cleanup)
+      if: always()
+      run: |
+        sudo umount -lf arm64-rootfs/dev/pts || true
+        sudo umount -lf arm64-rootfs/dev || true
+        sudo umount -lf arm64-rootfs/proc || true
+        sudo umount -lf arm64-rootfs/sys || true
 
     - uses: actions/upload-artifact@v4
       with:
