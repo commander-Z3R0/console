@@ -1,81 +1,88 @@
-name: Build and Release gnome-console ARM64 .deb
+name: Build GNOME Console ARM64
+
 
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
 
+
 jobs:
-  build:
-    runs-on: ubuntu-24.04-arm
+  build-arm64:
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
 
-    - name: Remove bundled subprojects (use system libraries)
+    - name: Install build dependencies (host + ARM64)
       run: |
-        rm -rf subprojects/glib
-        rm -rf subprojects/gtk
-        rm -rf subprojects/vte
-        rm -rf subprojects/libadwaita
-
-    - name: Upgrade Meson
-      run: python3 -m pip install --upgrade meson
-
-    - name: Install build dependencies
-      run: |
+        sudo dpkg --add-architecture arm64
         sudo apt update
-        sudo apt install -y \
-          ninja-build pkg-config \
-          libglib2.0-dev libglib2.0-bin \
-          libgirepository1.0-dev \
-          libgtk-4-dev \
-          libadwaita-1-dev \
-          libvte-2.91-dev \
-          libunwind-dev \
-          libsystemd-dev \
-          gettext \
-          dpkg-dev debhelper
 
-    - name: Configure with Meson
+       
+        sudo apt install -y \
+          gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+          binutils-aarch64-linux-gnu \
+          pkg-config-aarch64-linux-gnu
+
+        sudo apt install -y \
+          libglib2.0-dev:arm64 \
+          libgirepository1.0-dev:arm64 \
+          libgtk-4-dev:arm64 \
+          libadwaita-1-dev:arm64 \
+          libvte-2.91-dev:arm64 \
+          libprocps-dev:arm64 \
+          libnl-3-dev:arm64 \
+          libnl-route-3-dev:arm64 \
+          libpcre2-dev:arm64 \
+          libxml2-dev:arm64 \
+          libgdk-pixbuf-2.0-dev:arm64 \
+          libsystemd-dev:arm64
+
+         sudo apt install -y \
+          meson ninja-build gettext build-essential gi-docgen
+
+    - name: Show cross-file
       run: |
-        meson setup build --prefix=/usr \
-          -Dbuildtype=debugoptimized
+        echo "========== aarch64.txt =========="
+        cat aarch64.txt
+        echo "=================================="
+
+    - name: Configure Meson for ARM64
+      run: |
+        meson setup build \
+          --cross-file aarch64.txt \
+          --prefix=/usr
 
     - name: Build
-      run: meson compile -C build
+      run: ninja -C build
 
-    - name: Install into staging directory
-      run: meson install --destdir=${{ github.workspace }}/package-staging -C build
-
-    - name: Create DEBIAN control file
+    - name: Install rootfs structure
       run: |
-        mkdir -p package-staging/DEBIAN
-        cat > package-staging/DEBIAN/control <<EOF
-        Package: gnome-console
-        Version: ${{ github.ref_name }}
-        Section: utils
-        Priority: optional
-        Architecture: arm64
-        Maintainer: Your Name <email@example.com>
-        Description: GNOME Console built for ARM64
+        meson install -C build --destdir pkg
+
+    - name: Create DEBIAN metadata
+      run: |
+        mkdir -p pkg/DEBIAN
+        cat > pkg/DEBIAN/control <<EOF
+          Package: gnome-console
+          Version: 1.0
+          Architecture: arm64
+          Maintainer: GitHub Actions
+          Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
+          Description: GNOME Console compiled for ARM64
         EOF
 
-    - name: Build .deb package
+    - name: Build DEB package
       run: |
-        dpkg-deb --build package-staging
-        mv package-staging.deb gnome-console_${{ github.ref_name }}_arm64.deb
+        dpkg-deb --build pkg console_arm64.deb
 
-    - name: Create GitHub release
-      uses: softprops/action-gh-release@v2
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: ${{ github.ref_name }}
-        name: Release ${{ github.ref_name }}
-        files: gnome-console_${{ github.ref_name }}_arm64.deb
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: console-arm64
+        path: console_arm64.deb
