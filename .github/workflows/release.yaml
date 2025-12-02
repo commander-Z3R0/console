@@ -22,12 +22,10 @@ jobs:
     - name: Upgrade Meson
       run: python3 -m pip install --upgrade meson
 
-    - name: Install build dependencies and packaging tools
+    - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y ninja-build pkg-config \
-          libgtk-4-dev libglib2.0-dev libvte-2.91-dev libadwaita-1-dev \
-          libsystemd-dev gettext dpkg-dev debhelper
+        sudo apt install -y ninja-build pkg-config libglib2.0-dev libgio2.0-dev libglib2.0-bin libgirepository1.0-dev libunwind-dev libgtk-4-dev libvte-2.91-dev libadwaita-1-dev libsystemd-dev gettext dpkg-dev debhelper
 
     - name: Configure build with Meson
       run: |
