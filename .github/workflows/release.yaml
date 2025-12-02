@@ -56,13 +56,13 @@ jobs:
       run: |
         mkdir -p arm64-rootfs/pkg/DEBIAN
         cat > arm64-rootfs/pkg/DEBIAN/control <<EOF
-Package: gnome-console
-Version: 1.0
-Architecture: arm64
-Maintainer: GitHub Actions
-Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
-Description: GNOME Console compiled for ARM64
-EOF
+          Package: gnome-console
+          Version: 1.0
+          Architecture: arm64
+          Maintainer: GitHub Actions
+          Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
+          Description: GNOME Console compiled for ARM64
+        EOF
 
         dpkg-deb --build arm64-rootfs/pkg console_arm64.deb
 
