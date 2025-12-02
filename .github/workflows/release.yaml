@@ -44,13 +44,13 @@ jobs:
       run: |
         mkdir -p pkg/DEBIAN
         cat > pkg/DEBIAN/control <<EOF
-Package: gnome-console
-Version: 1.0
-Architecture: arm64
-Maintainer: GitHub Actions
-Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
-Description: GNOME Console compiled for ARM64
-EOF
+          Package: gnome-console
+          Version: 1.0
+          Architecture: arm64
+          Maintainer: GitHub Actions
+          Depends: libc6, libgtk-4-1, libadwaita-1-0, libvte-2.91-0
+          Description: GNOME Console compiled for ARM64
+        EOF
         dpkg-deb --build pkg gnome-console_arm64.deb
 
     - name: Upload artifact
